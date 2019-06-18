@@ -11,6 +11,7 @@
 
 # CODE NOTES:
 # Inefficiencies:
+# TODO Replace is_circle (which currently uses sqrt, expensive) with a faster algorithm. Maybe use the determinant formula
 # - has_crescent_dist is currently written really inefficiently. I should fix that. (However, according to cProfile, to compute n=8, has_crescent_dist takes 1s and is_general_position takes 6s, so I should really be focusing on is_general_position.)
 # 
 # Fixed inefficiencies:
@@ -19,49 +20,101 @@
 
 ##################### 
 
-LATT_SIZE = 6
+LATT_SIZE = 9
+GEOMETRY = 0 
+# Euclidean = 0
+# Taxicab = 1
+
 import math
 import itertools
 import time
 epsilon = 0.001
 
-# Data structure: Lattice is encoded like this
+# For Euclidean metric (GEOMETRY = 0), the triangular lattice looks like this
+#For example, dist[ (0,0) + (1,1) ] is 3 (because it returns dist squared.)
 """
   *     *       *      *
 
      *      *      *       *
-(1,0)  (1,1)
+(0,1)  (1,1)
   *     *      *       *
-
+  
 *    *     *      *
 (0,0)(1,0)
 """
-#For example, dist[ (0,0) + (1,1) ] is 3 (because it returns dist squared.)
+
+# For taxicab metric (GEOMETRY = 1), the lattice is square.
+# For example, dist[ (0,0) + (1,1) ] is 2.
+"""
+*    *    *    *    *
+(0,1) (1,1)
+*    *    *    *    *
+     |
+*----*    *    *    *
+(0,0) (1,0)
+"""
+
+
+######### INITIALIZATION METHODS
+
+def init_euclidean():
+    print("Initializing distances...")
+    dist = dict()
+    for a1,a2,b1,b2 in itertools.product(range(LATT_SIZE), repeat=4 ):
+        dist[(a1,a2,b1,b2)] = (b1 - a1)**2 + (b2 - a2)**2 + (b1-a1)*(b2-a2)
+
+    print("Initializing lines...")
+    is_colinear = dict()
+    for a1,a2,b1,b2,c1,c2 in itertools.product(range(LATT_SIZE), repeat=6 ):
+        is_colinear[(a1,a2,b1,b2,c1,c2)] = (b2 - a2)*(c1 - a1) == (c2 - a2)*(b1 - a1)
+
+    print("Initializing circles...")
+    is_circle = dict()
+    for a1,a2,b1,b2,c1,c2,d1,d2 in itertools.product(range(LATT_SIZE), repeat=8 ):
+        diag1 = math.sqrt( dist[(a1,a2,c1,c2)] * dist[(b1,b2,d1,d2)] )
+        diag2 = math.sqrt( dist[(a1,a2,d1,d2)] * dist[(b1,b2,c1,c2)] )
+        diag3 = math.sqrt( dist[(a1,a2,b1,b2)] * dist[(c1,c2,d1,d2)] )
+        max_diag = max( diag1, diag2, diag3 )
+        others = diag1 + diag2 + diag3 - max_diag
+        is_circle[(a1,a2,b1,b2,c1,c2,d1,d2)] = abs(max_diag - others) < epsilon # testing if floating point equal
+    return dist, is_colinear, is_circle
+
+def init_taxicab():
+    print("Initializing distances...")
+    dist = dict()
+    for a1,a2,b1,b2 in itertools.product(range(LATT_SIZE), repeat=4 ):
+        dist[(a1,a2,b1,b2)] = (b1 - a1) + (b2 - a1)
+
+    print("Initializing lines...")
+    is_colinear = dict()
+    for a1,a2,b1,b2,c1,c2 in itertools.product(range(LATT_SIZE), repeat=6 ):
+        is_colinear[(a1,a2,b1,b2,c1,c2)] = (b2 - a2)*(c1 - a1) == (c2 - a2)*(b1 - a1)
+
+    print("Initializing circle...")
+    is_circle = dict()
+    #TODO hmmm
+
+######## INITIALIZATION ##########
+# This block of code is run each time when the file is imported.
 
 start_init_time = time.time()
 
-#New, faster way.
-print("Initializing distances...")
-dist = dict()
-for a1,a2,b1,b2 in itertools.product(range(LATT_SIZE), repeat=4 ):
-    dist[(a1,a2,b1,b2)] = (b1 - a1)**2 + (b2 - a2)**2 + (b1-a1)*(b2-a2)
-
-print("Initializing lines...")
-is_colinear = dict()
-for a1,a2,b1,b2,c1,c2 in itertools.product(range(LATT_SIZE), repeat=6 ):
-    is_colinear[(a1,a2,b1,b2,c1,c2)] = (b2 - a2)*(c1 - a1) == (c2 - a2)*(b1 - a1)
-
-print("Initializing circles...")
-is_circle = dict()
-for a1,a2,b1,b2,c1,c2,d1,d2 in itertools.product(range(LATT_SIZE), repeat=8 ):
-    diag1 = math.sqrt( dist[(a1,a2,c1,c2)] * dist[(b1,b2,d1,d2)] )
-    diag2 = math.sqrt( dist[(a1,a2,d1,d2)] * dist[(b1,b2,c1,c2)] )
-    diag3 = math.sqrt( dist[(a1,a2,b1,b2)] * dist[(c1,c2,d1,d2)] )
-    max_diag = max( diag1, diag2, diag3 )
-    others = diag1 + diag2 + diag3 - max_diag
-    is_circle[(a1,a2,b1,b2,c1,c2,d1,d2)] = abs(max_diag - others) < epsilon # testing if floating point equal
+if GEOMETRY == 0:# Euclidean
+    # LATT_SIZE = 6 takes 3s
+    # LATT_SIZE = 7 takes 10s
+    # LATT_SIZE = 9 takes 70s
+    # LATT_SIZE = 10 nearly crashed my (old) computer
+    dist, is_colinear, is_circle = init_euclidean()
+elif GEOMETRY == 1:# Taxicab
+    dist, is_colinear, is_circle = init_taxicab()
+else:
+    print("Invalid geometry specified.")
 
 print("Total init time: ", time.time() - start_init_time)
+
+##################################
+
+############# COMPUTING CRESCENT SETS METHODS ############
 
 def is_general_position(c):
     '''Input: c, a list of points (tuples of integers)
@@ -142,6 +195,8 @@ def find_crescent_set(n):
                     have_incremented = True
     print("Could not find crescent set. Try a bigger grid.")
 
+################ TEST FUNCTION ################
+
 def test():
     '''Test function.'''
     a = (0,0)
@@ -165,53 +220,4 @@ def test():
         print(command,"= ",end='')
         exec("print("+command+")")
 
-# Old code, please ignore.
-# --------------------------------------
 
-
-#Old, slow methods.
-"""
-def dist(a,b):
-    '''Input: a,b (both tuples of integers)
-        Computes distance^2 between a,b'''
-    a1, a2 = a[0], a[1]
-    b1, b2 = b[0], b[1]
-    return (b1 - a1)**2 + (b2 - a2)**2 + (b1-a1)*(b2-a2)
-
-def is_colinear(a,b,c):
-    '''Input: a,b,c (tuples of integers)
-        Computes whether a,b,c lie on a line.'''
-    a1, a2 = a[0], a[1]
-    b1, b2 = b[0], b[1]
-    c1, c2 = c[0], c[1]
-    return (b2 - a2)*(c1 - a1) == (c2 - a2)*(b1 - a1)
-
-def equal(x,y):
-    return abs(x-y) < epsilon
-
-def is_circle(a,b,c,d):
-    '''Input: a,b,c,d (tuples of integers)
-        Computes whether a,b,c,d lie on a circle.
-        Uses the fact that AC * BD = AB*CD + BC*AD iff ABCD is on circle.'''
-    diag1 = math.sqrt( dist(a,c) * dist(b,d) )
-    diag2 = math.sqrt( dist(a,b) * dist(c,d) )
-    diag3 = math.sqrt( dist(b,c) * dist(a,d) )
-    max_diag = max( diag1, diag2, diag3 )
-    others = diag1 + diag2 + diag3 - max_diag
-    return equal(max_diag, others)
-
-def is_general_position(c):
-    '''Input: c, a list of points (tuples of integers)
-        NOTE: We assume inductively that if c = [c1, ..., cn], that c1, ..., cn-1 are already in general position.'''
-    last = c[-1]
-    for a,b in itertools.combinations(c[:-1], 2):
-        if is_colinear(a,b,last):
-            #print("Line:",a,b,last)
-            return False
-    for a,b,d in itertools.combinations(c[:-1], 3):
-        if is_circle(a,b,d,last):
-            #print("Circle:",a,b,d,last)
-            return False
-    return True
-"""
-# ------------------------------------
