@@ -7,23 +7,23 @@
 # 1. When importing nin.py, it should take < 10s. This is intended, it's because is_circle takes a while to compute.
 # 2. Run the function find_crescent_set(n), where n is the size of the crescent set we want.
 # 3. If the function returns "Could not find crescent set. Try a bigger grid.", then increase the global variable LATT_SIZE, re-import nin.py, and try again.
-# 4. The cases n <= 7 run quickly on LATT_SIZE = 5. The case n = 8 takes 13s and then works on LATT_SIZE = 6.
+# 4. The cases n <= 7 run quickly on LATT_SIZE = 5. The case n = 8 takes 8s and then works on LATT_SIZE = 6.
 
 # CODE NOTES:
 # Inefficiencies:
-# TODO Replace is_circle (which currently uses sqrt, expensive) with a faster algorithm. Maybe use the determinant formula
 # - has_crescent_dist is currently written really inefficiently. I should fix that. (However, according to cProfile, to compute n=8, has_crescent_dist takes 1s and is_general_position takes 6s, so I should really be focusing on is_general_position.)
 # 
 # Fixed inefficiencies:
-# - FIXED. instead of dist function, precompute all of the distances. Can even do this for lines, and circles. (This is not hard for small grid sizes. For large grid sizes, maybe cache a small thing and find a way how to "reduce")
-# -------------- This fix cut the runtime (for n=8) down from 60s to 13s. Yay!
+# - FIXED. instead of dist function, precompute all of the distances. Can even do this for lines, and circles. This is not hard for small grid sizes. For large grid sizes, maybe cache a small thing and find a way how to "reduce". (This fix cut the runtime (for n=8) down from 60s to 13s. Yay!)
+# - FIXED. is_circle function was expensive. Precomputed the sqrt of all of the distances. (This cut down n=8 time from 13s to 7.5s)
+# -------------- 
 
 ##################### 
 
-LATT_SIZE = 9
+LATT_SIZE = 8
 GEOMETRY = 0 
 # Euclidean = 0
-# Taxicab = 1
+# Taxicab = 1 (not implemented yet)
 
 import math
 import itertools
@@ -63,6 +63,10 @@ def init_euclidean():
     for a1,a2,b1,b2 in itertools.product(range(LATT_SIZE), repeat=4 ):
         dist[(a1,a2,b1,b2)] = (b1 - a1)**2 + (b2 - a2)**2 + (b1-a1)*(b2-a2)
 
+    sqrt_dist = dict()
+    for pair in dist.keys():
+        sqrt_dist[pair] = math.sqrt( dist[pair] )
+
     print("Initializing lines...")
     is_colinear = dict()
     for a1,a2,b1,b2,c1,c2 in itertools.product(range(LATT_SIZE), repeat=6 ):
@@ -71,9 +75,9 @@ def init_euclidean():
     print("Initializing circles...")
     is_circle = dict()
     for a1,a2,b1,b2,c1,c2,d1,d2 in itertools.product(range(LATT_SIZE), repeat=8 ):
-        diag1 = math.sqrt( dist[(a1,a2,c1,c2)] * dist[(b1,b2,d1,d2)] )
-        diag2 = math.sqrt( dist[(a1,a2,d1,d2)] * dist[(b1,b2,c1,c2)] )
-        diag3 = math.sqrt( dist[(a1,a2,b1,b2)] * dist[(c1,c2,d1,d2)] )
+        diag1 = sqrt_dist[(a1,a2,c1,c2)] * sqrt_dist[(b1,b2,d1,d2)]
+        diag2 = sqrt_dist[(a1,a2,d1,d2)] * sqrt_dist[(b1,b2,c1,c2)]
+        diag3 = sqrt_dist[(a1,a2,b1,b2)] * sqrt_dist[(c1,c2,d1,d2)] 
         max_diag = max( diag1, diag2, diag3 )
         others = diag1 + diag2 + diag3 - max_diag
         is_circle[(a1,a2,b1,b2,c1,c2,d1,d2)] = abs(max_diag - others) < epsilon # testing if floating point equal
@@ -101,9 +105,9 @@ start_init_time = time.time()
 
 if GEOMETRY == 0:# Euclidean
     # LATT_SIZE = 6 takes 3s
-    # LATT_SIZE = 7 takes 10s
-    # LATT_SIZE = 9 takes 70s
-    # LATT_SIZE = 10 nearly crashed my (old) computer
+    # LATT_SIZE = 7 takes 8s
+    # LATT_SIZE = 8 takes 24s
+    # LATT_SIZE = 9 takes 58s
     dist, is_colinear, is_circle = init_euclidean()
 elif GEOMETRY == 1:# Taxicab
     dist, is_colinear, is_circle = init_taxicab()
@@ -160,14 +164,21 @@ def distance_set(c):
             dis[d] = 1
     return dis
 
+################## FINDING CRESCENT SET #########
+# Call this function to find a crecent set. 
+
 def find_crescent_set(n):
     '''Input: n (positive integer)
        Output: crescent set of size n'''
     start_time = time.time()
     current_set = []
     next_to_add = (0,0)
+    count = 0
     while next_to_add != None:
-        # print(current_set, next_to_add)
+        count += 1
+        if count % 10000000 == 0:# (prints where we are every 100s)
+            print(current_set)
+            print(time.time() - start_time)
         current_set.append(next_to_add)
         is_bad_set = False
         if not is_general_position(current_set):

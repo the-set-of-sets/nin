@@ -1,6 +1,8 @@
 # 6.18.2019
 # Old code
-# I am keeping this in a separate file because I do not trust my git skills
+# ----------------------
+# These are slow bits of code which I replaced by faster bits of code.
+# I am keeping this in a separate file because I do not trust my git skills.
 # --------------------------------------
 
 def dist(a,b):
