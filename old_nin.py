@@ -72,14 +72,15 @@ def init_euclidean():
         is_colinear[(a1,a2,b1,b2,c1,c2)] = (b2 - a2)*(c1 - a1) == (c2 - a2)*(b1 - a1)
 
     print("Initializing circles...")
-    is_circle = dict()
+    is_circle = set()
     for a1,a2,b1,b2,c1,c2,d1,d2 in itertools.product(range(LATT_SIZE), repeat=8 ):
         diag1 = sqrt_dist[(a1,a2,c1,c2)] * sqrt_dist[(b1,b2,d1,d2)]
         diag2 = sqrt_dist[(a1,a2,d1,d2)] * sqrt_dist[(b1,b2,c1,c2)]
         diag3 = sqrt_dist[(a1,a2,b1,b2)] * sqrt_dist[(c1,c2,d1,d2)] 
         max_diag = max( diag1, diag2, diag3 )
         others = diag1 + diag2 + diag3 - max_diag
-        is_circle[(a1,a2,b1,b2,c1,c2,d1,d2)] = abs(max_diag - others) < epsilon # testing if floating point equal
+        if abs(max_diag - others) < epsilon: # testing if floating point equal
+            is_circle.add((a1,a2,b1,b2,c1,c2,d1,d2))
     return dist, is_colinear, is_circle
 
 def init_taxicab():
@@ -127,7 +128,7 @@ def is_general_position(c):
         if is_colinear[a+b+last]:
             return False
     for a,b,d in itertools.combinations(c[:-1], 3):
-        if is_circle[a+b+d+last]:
+        if a+b+d+last in is_circle:
             return False
     return True
 
