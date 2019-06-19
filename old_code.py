@@ -46,3 +46,15 @@ def is_general_position(c):
             return False
     return True
 # ------------------------------------
+
+
+################### Old circles
+    print("Initializing circles...")
+    is_circle = dict()
+    for a1,a2,b1,b2,c1,c2,d1,d2 in itertools.product(range(LATT_SIZE), repeat=8 ):
+        diag1 = sqrt_dist[(a1,a2,c1,c2)] * sqrt_dist[(b1,b2,d1,d2)]
+        diag2 = sqrt_dist[(a1,a2,d1,d2)] * sqrt_dist[(b1,b2,c1,c2)]
+        diag3 = sqrt_dist[(a1,a2,b1,b2)] * sqrt_dist[(c1,c2,d1,d2)] 
+        max_diag = max( diag1, diag2, diag3 )
+        others = diag1 + diag2 + diag3 - max_diag
+        is_circle[(a1,a2,b1,b2,c1,c2,d1,d2)] = abs(max_diag - others) < epsilon # testing if floating point equal
