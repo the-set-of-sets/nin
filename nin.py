@@ -34,7 +34,6 @@ epsilon = 0.001
 #For example, dist[ (0,0) + (1,1) ] is 3 (because it returns dist squared.)
 """
   *     *       *      *
-
      *      *      *       *
 (0,1)  (1,1)
   *     *      *       *
@@ -63,56 +62,26 @@ def init_euclidean():
     for a1,a2,b1,b2 in itertools.product(range(LATT_SIZE), repeat=4 ):
         dist[(a1,a2,b1,b2)] = (b1 - a1)**2 + (b2 - a2)**2 + (b1-a1)*(b2-a2)
 
-    #sqrt_dist = dict()
-    #for pair in dist.keys():
-    #    sqrt_dist[pair] = math.sqrt( dist[pair] )
+    sqrt_dist = dict()
+    for pair in dist.keys():
+        sqrt_dist[pair] = math.sqrt( dist[pair] )
 
     print("Initializing lines...")
     is_colinear = dict()
     for a1,a2,b1,b2,c1,c2 in itertools.product(range(LATT_SIZE), repeat=6 ):
         is_colinear[(a1,a2,b1,b2,c1,c2)] = (b2 - a2)*(c1 - a1) == (c2 - a2)*(b1 - a1)
 
-
     print("Initializing circles...")
-    # https://math.stackexchange.com/questions/1304194/center-of-circle-when-three-points-in-3-space-are-given 
-    # Compute circle data: 
-    circle_data = dict()
-    inv_circle_data = dict()
-    for a1,a2,b1,b2,c1,c2 in itertools.product(range(LATT_SIZE), repeat=6 ):
-        if not is_colinear[(a1,a2,b1,b2,c1,c2)]:
-            a = dist[(b1,b2,c1,c2)]
-            b = dist[(a1,a2,c1,c2)]
-            c = dist[(a1,a2,b1,b2)]
-            alpha = a * (b + c - a)
-            beta = b * (c + a - b)
-            gamma = c * (a + b - c)
-            a1_actual = a1 + 0.5*a2 # if I cared, I would precompute these to save time.
-            a2_actual = math.sqrt(3)*0.5*a2
-            b1_actual = b1 + 0.5*b2
-            b2_actual = math.sqrt(3)*0.5*b2
-            c1_actual = c1 + 0.5*c2
-            c2_actual = math.sqrt(3)*0.5*c2
-            x1 = (alpha * a1_actual + beta * b1_actual + gamma * c1_actual)/(alpha + beta + gamma)
-            x2 = (alpha * a2_actual + beta * b2_actual + gamma * c2_actual)/(alpha + beta + gamma)
-            rad_sq = (x1 - a1_actual)**2 + (x2 - a2_actual)**2
-        else:
-            x1 = 0
-            x2 = 0
-            rad_sq = 0
-        # Set the values for circle_data and inv_circle_data
-        circle_data[(a1, a2, b1, b2, c1, c2)] = (x1, x2, rad_sq)
-        if (x1, x2, rad_sq) in inv_circle_data.keys():
-            inv_circle_data[(x1, x2, rad_sq)].append( (a1, a2, b1, b2, c1, c2) )
-        else:
-            inv_circle_data[(x1, x2, rad_sq)] = [(a1, a2, b1, b2, c1, c2)]
-         
-    # Postprocess circle data: since we don't actually need the data (x1, x2, rad), every (x1, x2, rad) is associated with a unique positive integer, and we compare those instead.
-    code = 0
-    for val in inv_circle_data.keys():
-        for i in inv_circle_data[val]:
-            circle_data[i] = code
-        code += 1
-    return dist, is_colinear, circle_data
+    is_circle = set()
+    for a1,a2,b1,b2,c1,c2,d1,d2 in itertools.product(range(LATT_SIZE), repeat=8 ):
+        diag1 = sqrt_dist[(a1,a2,c1,c2)] * sqrt_dist[(b1,b2,d1,d2)]
+        diag2 = sqrt_dist[(a1,a2,d1,d2)] * sqrt_dist[(b1,b2,c1,c2)]
+        diag3 = sqrt_dist[(a1,a2,b1,b2)] * sqrt_dist[(c1,c2,d1,d2)] 
+        max_diag = max( diag1, diag2, diag3 )
+        others = diag1 + diag2 + diag3 - max_diag
+        if abs(max_diag - others) < epsilon: # testing if floating point equal
+            is_circle.add((a1,a2,b1,b2,c1,c2,d1,d2))
+    return dist, is_colinear, is_circle
 
 def init_taxicab():
     print("Initializing distances...")
@@ -139,9 +108,9 @@ if GEOMETRY == 0:# Euclidean
     # LATT_SIZE = 7 takes 8s
     # LATT_SIZE = 8 takes 24s
     # LATT_SIZE = 9 takes 58s
-    dist, is_colinear, circle_data = init_euclidean()
+    dist, is_colinear, is_circle = init_euclidean()
 elif GEOMETRY == 1:# Taxicab
-    dist, is_colinear, circle_data = init_taxicab()
+    dist, is_colinear, is_circle = init_taxicab()
 else:
     print("Invalid geometry specified.")
 
@@ -151,11 +120,6 @@ print("Total init time: ", time.time() - start_init_time)
 
 ############# COMPUTING CRESCENT SETS METHODS ############
 
-def is_circle(a,b,c,d):
-    '''Input: a,b,c,d points (tuples of integers)
-    Output: True if lie on circle, False otherwise.'''
-    return circle_data[a+b+c] == circle_data[a+b+d]
-
 def is_general_position(c):
     '''Input: c, a list of points (tuples of integers)
         NOTE: We assume inductively that if c = [c1, ..., cn], that c1, ..., cn-1 are already in general position.'''
@@ -164,7 +128,7 @@ def is_general_position(c):
         if is_colinear[a+b+last]:
             return False
     for a,b,d in itertools.combinations(c[:-1], 3):
-        if is_circle(a,b,d,last):
+        if a+b+d+last in is_circle:
             return False
     return True
 
@@ -263,9 +227,7 @@ def test():
     print("circ3 =",circ3)
     print("circ4 =",circ4)
     #things_to_test = ["dist[a+b]", "dist[c+d]","is_colinear[a+b+c]", "is_colinear[b+c+d]", "is_circle[circ1+circ2+circ3+circ4]", "is_circle[a+b+c+d]", "increment_point(d)","is_general_position([a,b,c,d])", "is_general_position([b,c,d,a])", "is_general_position([circ1,circ2,circ3,circ4])"]
-    things_to_test = ["circle_data[circ1+circ2+circ3]", "circle_data[circ1+circ2+circ4]", "circle_data[b+c+d]", "is_circle(circ1,circ2,circ3,circ4)"]
+    things_to_test = ["(circ1, circ2, circ3, circ4) in is_circle"]
     for command in things_to_test:
         print(command,"= ",end='')
         exec("print("+command+")")
-
-
