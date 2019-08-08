@@ -1,65 +1,58 @@
-# 6.17.2019
+# 6.17.2019, updated 8.7.2019
 # Sara Fish
-# Description: Searches arbitrary lattice in arbitrary metric for crescent configs. Right now, set to triangle lattice and Euclidean metric, with the goal of making sure we can't get n = 9.
+# Description: Searches arbitrary lattice in L2 for crescent configs.
 
 # USAGE INSTRUCTIONS:
-# 0. Feel free to talk to me / force me to explain parts. I didn't write enough comments, sorry.
-# 1. When importing nin.py, it should take < 10s. This is intended, it's because is_circle takes a while to compute.
-# 2. Run the function find_crescent_set(n), where n is the size of the crescent set we want.
-# 3. If the function returns "Could not find crescent set. Try a bigger grid.", then increase the global variable LATT_SIZE, re-import nin.py, and try again.
-# 4. The cases n <= 7 run quickly on LATT_SIZE = 5. The case n = 8 takes 8s and then works on LATT_SIZE = 6.
+# python3 nin.py <crescent size> <grid size>
 
 # CODE NOTES:
 # Inefficiencies:
-# - has_crescent_dist is currently written really inefficiently. I should fix that. (However, according to cProfile, to compute n=8, has_crescent_dist takes 1s and is_general_position takes 6s, so I should really be focusing on is_general_position.)
-# 
-# Fixed inefficiencies:
-# - FIXED. instead of dist function, precompute all of the distances. Can even do this for lines, and circles. This is not hard for small grid sizes. For large grid sizes, maybe cache a small thing and find a way how to "reduce". (This fix cut the runtime (for n=8) down from 60s to 13s. Yay!)
-# - FIXED. is_circle function was expensive. Precomputed the sqrt of all of the distances. (This cut down n=8 time from 13s to 7.5s)
-# -------------- 
+# - has_crescent_dist is currently written really inefficiently. I should fix that.
+# (However, according to cProfile, to compute n=8, has_crescent_dist takes 1s
+# and is_general_position takes 6s, so I should really be focusing on is_general_position.)
 
-##################### 
 
-LATT_SIZE = 6
-GEOMETRY = 0 
-# Euclidean = 0
-# Taxicab = 1 (not implemented yet)
+#####################
 
 import math
 import itertools
 import time
+import sys
 epsilon = 0.001
 
-# For Euclidean metric (GEOMETRY = 0), the triangular lattice looks like this
+# The triangular lattice looks like this
 #For example, dist[ (0,0) + (1,1) ] is 3 (because it returns dist squared.)
 """
   *     *       *      *
      *      *      *       *
 (0,1)  (1,1)
   *     *      *       *
-  
+
 *    *     *      *
 (0,0)(1,0)
-"""
-
-# For taxicab metric (GEOMETRY = 1), the lattice is square.
-# For example, dist[ (0,0) + (1,1) ] is 2.
-"""
-*    *    *    *    *
-(0,1) (1,1)
-*    *    *    *    *
-     |
-*----*    *    *    *
-(0,0) (1,0)
 """
 
 
 ######### INITIALIZATION METHODS
 
-def init_euclidean():
+def init_euclidean(grid_size, forbid_parallelograms):
+    """Precomputes <dist>, <is_colinear>, <is_circle>, <is_special>
+    (Also computes sqrt_dist, which is used internally.)
+    Input: <grid_size>
+           <forbid_parallelograms>: If True, do not compute parallelograms
+                                     If False, compute parallelograms
+    Output: dist, is_colinear, is_circle, is_special
+            <dist> dict, key (a1, a2, b1, b2), value dist^2 between
+                    (a1, a2) and (b1, b2)
+            <is_colinear> dict, key (a1,a2,b1,b2,c1,c2), value True/False
+                    whether (a1, a2), (b1, b2), (c1, c2) lie on line
+            <is_circle> set, contains (a1,a2,b1,b2,c1,c2,d1,d2) which lie
+                    on circle
+            <is_special> set, contains (a1,a2,b1,b2,c1,c2,d1,d2) which lie
+                    on parallelogram"""
     print("Initializing distances...")
     dist = dict()
-    for a1,a2,b1,b2 in itertools.product(range(LATT_SIZE), repeat=4 ):
+    for a1,a2,b1,b2 in itertools.product(range(grid_size + 1), repeat=4 ):
         dist[(a1,a2,b1,b2)] = (b1 - a1)**2 + (b2 - a2)**2 + (b1-a1)*(b2-a2)
 
     sqrt_dist = dict()
@@ -68,61 +61,60 @@ def init_euclidean():
 
     print("Initializing lines...")
     is_colinear = dict()
-    for a1,a2,b1,b2,c1,c2 in itertools.product(range(LATT_SIZE), repeat=6 ):
+    for a1,a2,b1,b2,c1,c2 in itertools.product(range(grid_size + 1), repeat=6 ):
         is_colinear[(a1,a2,b1,b2,c1,c2)] = (b2 - a2)*(c1 - a1) == (c2 - a2)*(b1 - a1)
 
     print("Initializing circles...")
     is_circle = set()
-    for a1,a2,b1,b2,c1,c2,d1,d2 in itertools.product(range(LATT_SIZE), repeat=8 ):
+    for a1,a2,b1,b2,c1,c2,d1,d2 in itertools.product(range(grid_size + 1), repeat=8 ):
         diag1 = sqrt_dist[(a1,a2,c1,c2)] * sqrt_dist[(b1,b2,d1,d2)]
         diag2 = sqrt_dist[(a1,a2,d1,d2)] * sqrt_dist[(b1,b2,c1,c2)]
-        diag3 = sqrt_dist[(a1,a2,b1,b2)] * sqrt_dist[(c1,c2,d1,d2)] 
+        diag3 = sqrt_dist[(a1,a2,b1,b2)] * sqrt_dist[(c1,c2,d1,d2)]
         max_diag = max( diag1, diag2, diag3 )
         others = diag1 + diag2 + diag3 - max_diag
         if abs(max_diag - others) < epsilon: # testing if floating point equal
             is_circle.add((a1,a2,b1,b2,c1,c2,d1,d2))
-    return dist, is_colinear, is_circle
 
-def init_taxicab():
-    print("Initializing distances...")
-    dist = dict()
-    for a1,a2,b1,b2 in itertools.product(range(LATT_SIZE), repeat=4 ):
-        dist[(a1,a2,b1,b2)] = (b1 - a1) + (b2 - a1)
-
-    print("Initializing lines...")
-    is_colinear = dict()
-    for a1,a2,b1,b2,c1,c2 in itertools.product(range(LATT_SIZE), repeat=6 ):
-        is_colinear[(a1,a2,b1,b2,c1,c2)] = (b2 - a2)*(c1 - a1) == (c2 - a2)*(b1 - a1)
-
-    print("Initializing circle...")
-    is_circle = dict()
-    #TODO hmmm
-
-######## INITIALIZATION ##########
-# This block of code is run each time when the file is imported.
-
-start_init_time = time.time()
-
-if GEOMETRY == 0:# Euclidean
-    # LATT_SIZE = 6 takes 3s
-    # LATT_SIZE = 7 takes 8s
-    # LATT_SIZE = 8 takes 24s
-    # LATT_SIZE = 9 takes 58s
-    dist, is_colinear, is_circle = init_euclidean()
-elif GEOMETRY == 1:# Taxicab
-    dist, is_colinear, is_circle = init_taxicab()
-else:
-    print("Invalid geometry specified.")
-
-print("Total init time: ", time.time() - start_init_time)
+    is_special = set()
+    if forbid_parallelograms:
+        print("Initializing parallelograms...")
+        for a1,a2,b1,b2,c1,c2,d1,d2 in itertools.product(range(grid_size + 1), repeat=8 ):
+            # I realize this is slow but I don't care.
+            # Test if ABCD is special with AB || CD, AC || BD,  AB = BC = CD
+            if b2 - a2 == d2 - c2 and b1 - a1 == d1 - c1:
+                if c2 - a2 == d2 - b2 and c1 - a1 == d1 - b1:
+                    ab = dist[(a1,a2,b1,b2)]
+                    bc = dist[(b1,b2,c1,c2)]
+                    cd = dist[(c1,c2,d1,d2)]
+                    if ab == bc == cd:
+                        l = [a1,a2,b1,b2,c1,c2,d1,d2]
+                        for r in itertools.permutations(range(4),4):
+                            is_special.add(
+                            (l[2*r[0]], l[2*r[0] + 1],
+                             l[2*r[1]], l[2*r[1] + 1],
+                             l[2*r[2]], l[2*r[2] + 1],
+                             l[2*r[3]], l[2*r[3] + 1]) )
+                        #is_special.add((a1,a2,b1,b2,c1,c2,d1,d2))
+    return dist, is_colinear, is_circle, is_special
 
 ##################################
 
 ############# COMPUTING CRESCENT SETS METHODS ############
 
-def is_general_position(c):
-    '''Input: c, a list of points (tuples of integers)
-        NOTE: We assume inductively that if c = [c1, ..., cn], that c1, ..., cn-1 are already in general position.'''
+def is_general_position(c, forbid_parallelograms):
+    """ Computes whether <c>, a list of points, lies in general position.
+    General position means:
+        - no 3 on a line
+        - no 4 on a circle
+        - if forbid_parallelograms: no 4 in special parallelogram
+        (Special parallelogram is parallelogram ABCD with AB = BC = CD.)
+    Input: <c>, a list of points (tuples of integers)
+           <forbid_parallelograms>, True/False (whether to forbid
+                parallelograms)
+    Output: True/False (whether in general position)
+    IMPORTANT NOTE: We assume inductively that if c = [c1, ..., cn], that
+    c1, ..., cn-1 are already in general position. This function will not
+    work as expected if used on an arbitrary set."""
     last = c[-1]
     for a,b in itertools.combinations(c[:-1], 2):
         if is_colinear[a+b+last]:
@@ -130,14 +122,20 @@ def is_general_position(c):
     for a,b,d in itertools.combinations(c[:-1], 3):
         if a+b+d+last in is_circle:
             return False
+    if forbid_parallelograms:
+        for a,b,d in itertools.permutations(c[:-1], 3):
+            if a+b+d+last in is_special:
+                return False
     return True
 
-def increment_point(a):
-    '''Input: a (tuple of integers)'''
-    if a[0] >= LATT_SIZE or a[1] >= LATT_SIZE:
+def increment_point(a, grid_size):
+    """ Increments point <a> in <grid_size>.
+    Input: <a>, point
+    Output: <a> incremented in <grid_size>, if it exists, else None"""
+    if a[0] > grid_size or a[1] > grid_size:
         return None #not valid point in lattice
-    if a[1] == LATT_SIZE - 1:
-        if a[0] == LATT_SIZE - 1:
+    if a[1] == grid_size:
+        if a[0] == grid_size:
             return None # a was max point, so no successor
         else:
             return (a[0] + 1, 0)
@@ -146,15 +144,21 @@ def increment_point(a):
 
 
 def has_crescent_dist(c):
-    '''Input: c, a list of points (tuples of integers)
-    Assuming the points are in general position, this counts the distances between them and sees whether they satisfy the crescent condition. I.e., one distance appears 1x, one 2x, ... up to n-1x., where n is the number of points.'''
+    """ Computes whether <c>, set of points, has crescent dist.
+    Crescent dist means: If c has size n, then for 1 <= i <= n - 1, the ith
+    distance appears exactly i times.
+    Input: <c>, a list of points
+    Output: True/False (whether <c> has crescent dist )
+    """
     n = len(c)
     dis = distance_set(c)
     return set(dis.values() ) == set(range(1,n))
+    # return len(dis.values() ) <= n # WEAKER CONDITION
 
 def distance_set(c):
-    '''Input: c, a list of points (tuples of integers)
-        Returns a dict with its distances.'''
+    """ Computes the distance set of <c>
+    Input: c, a list of points
+    Output: dict, key distance, value multiplicity"""
     dis = dict()
     for a,b in itertools.combinations(c, 2):
         d = dist[a+b]
@@ -165,11 +169,15 @@ def distance_set(c):
     return dis
 
 ################## FINDING CRESCENT SET #########
-# Call this function to find a crecent set. 
+# Call this function to find a crecent set.
 
-def find_crescent_set(n):
-    '''Input: n (positive integer)
-       Output: crescent set of size n'''
+def find_crescent_set(n, grid_size, forbid_parallelograms):
+    """ Finds crescent set of size <n> in <grid_size>.
+    Input: <n> (positive integer)
+           <grid_size> grid size
+           <forbid_parallelograms> True/False (whether to forbid special
+                parallelograms)
+    Output: crescent set of size n, or prints that it does not exist"""
     start_time = time.time()
     current_set = []
     next_to_add = (0,0)
@@ -181,7 +189,7 @@ def find_crescent_set(n):
             print(time.time() - start_time)
         current_set.append(next_to_add)
         is_bad_set = False
-        if not is_general_position(current_set):
+        if not is_general_position(current_set, forbid_parallelograms):
             is_bad_set = True
         else:
             if len(current_set) >= n:
@@ -190,18 +198,18 @@ def find_crescent_set(n):
                     print("Time taken: ",total_time)
                     print("Distance set is: ", distance_set(current_set) )
                     print("The pairs are of the form (distance^2: frequency).\n")
-                    print("The coordinates of the points in the triangle lattice are:")
+                    print("The coordinates of the points in the triangle lattice are:", current_set)
                     return current_set
                 else:
                     is_bad_set = True
             else:
-                next_to_add = increment_point(next_to_add)
+                next_to_add = increment_point(next_to_add, grid_size)
                 if next_to_add == None:
                     is_bad_set = True
         if is_bad_set:
             have_incremented = False
             while not have_incremented and current_set != []:
-                next_to_add = increment_point(current_set.pop())
+                next_to_add = increment_point(current_set.pop(), grid_size)
                 if next_to_add != None:
                     have_incremented = True
     print("Could not find crescent set. Try a bigger grid.")
@@ -209,25 +217,54 @@ def find_crescent_set(n):
 ################ TEST FUNCTION ################
 
 def test():
-    '''Test function.'''
-    a = (0,0)
-    b = (1,1)
-    c = (2,3)
-    d = (3,5)
-    circ1 = (0,1)
-    circ2 = (1,0)
-    circ3 = (2,0)
-    circ4 = (1,2)
-    print("a =",a)
-    print("b =",b)
-    print("c =",c)
-    print("d =",d)
-    print("circ1 =",circ1)
-    print("circ2 =",circ2)
-    print("circ3 =",circ3)
-    print("circ4 =",circ4)
-    #things_to_test = ["dist[a+b]", "dist[c+d]","is_colinear[a+b+c]", "is_colinear[b+c+d]", "is_circle[circ1+circ2+circ3+circ4]", "is_circle[a+b+c+d]", "increment_point(d)","is_general_position([a,b,c,d])", "is_general_position([b,c,d,a])", "is_general_position([circ1,circ2,circ3,circ4])"]
-    things_to_test = ["(circ1, circ2, circ3, circ4) in is_circle"]
-    for command in things_to_test:
-        print(command,"= ",end='')
-        exec("print("+command+")")
+    """Test function."""
+    print(is_special)
+
+
+##############################################################
+##############################################################
+
+if __name__ == "__main__":
+    print_usage = False
+    if len(sys.argv) <= 4:
+        print_usage = True
+    elif len(sys.argv) >= 4:
+        mode = sys.argv[1]
+        try:
+            crescent_size = int(sys.argv[2])
+            grid_size = int(sys.argv[3])
+            forbid_parallelograms = sys.argv[4]
+            if forbid_parallelograms == "y":
+                forbid_parallelograms = True
+            elif forbid_parallelograms == "n":
+                forbid_parallelograms = False
+            else:
+                raise ValueError
+        except ValueError:
+            print_usage = True
+    if not print_usage:
+        if mode == "test":
+            dist, is_colinear, is_circle, is_special = init_euclidean(grid_size,
+                forbid_parallelograms)
+            test()
+        elif mode == "crescent":
+            # initialization
+            start_init_time = time.time()
+            dist, is_colinear, is_circle, is_special = init_euclidean(grid_size,
+                forbid_parallelograms)
+            print("Total init time: ", time.time() - start_init_time)
+
+            # compute crescent set
+            find_crescent_set( crescent_size, grid_size, forbid_parallelograms)
+    else:
+        print("Usage: python3 "+sys.argv[0]+" <mode>"+" <crescent_size>"+" <grid_size>"+
+        " <forbid_parallelograms>")
+        print("mode: test, crescent")
+        print("\t test, runs test function")
+        print("\t crescent, finds crescent set")
+        print("crescent_size: Size of crescent set being searched for.")
+        print("grid_size: Searches grid from (0,0) to (grid_size, grid_size)")
+        print("forbid_parallelograms: y or n")
+        print("\t y, forbids special parallelograms")
+        print("\t n, forbids special parallelograms")
+        print("(A special parallelogram is ABCD with AB = BC = CD.)")
