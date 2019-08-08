@@ -3,14 +3,7 @@
 # Description: Searches arbitrary lattice in L2 for crescent configs.
 
 # USAGE INSTRUCTIONS:
-# python3 nin.py <crescent size> <grid size>
-
-# CODE NOTES:
-# Inefficiencies:
-# - has_crescent_dist is currently written really inefficiently. I should fix that.
-# (However, according to cProfile, to compute n=8, has_crescent_dist takes 1s
-# and is_general_position takes 6s, so I should really be focusing on is_general_position.)
-
+# python3 nin.py <mode> <crescent size> <grid size> <forbid_parallelograms>
 
 #####################
 
