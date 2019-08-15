@@ -161,6 +161,17 @@ def distance_set(c):
             dis[d] = 1
     return dis
 
+def lattice_to_coords(c):
+    """ Given a list of lattice coords, gives real cartesian coords.
+    Input: c, a list of points (in the lattice)
+    Output: list of points (real coordinates)"""
+    new_c = []
+    for p in c:
+        x_coord = p[1] * .5 + p[0]
+        y_coord = p[1] * ( math.sqrt(3) / 2)
+        new_c.append( ( round(x_coord,3), round(y_coord,3) ) )
+    return new_c
+
 ################## FINDING CRESCENT SET #########
 # Call this function to find a crecent set.
 
@@ -211,8 +222,11 @@ def find_crescent_set(n, grid_size, forbid_parallelograms):
 
 def test():
     """Test function."""
-    print(is_special)
-
+    crescent6 = [(0, 1), (0, 2), (1, 1), (2, 3), (3, 3), (4, 0)]
+    for a,b in itertools.combinations(crescent6, 2):
+        print(lattice_to_coords([a,b]),dist[a+b])
+    print(distance_set(crescent6))
+    print(lattice_to_coords(crescent6))
 
 ##############################################################
 ##############################################################
